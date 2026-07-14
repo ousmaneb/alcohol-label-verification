@@ -200,12 +200,54 @@ function normalizeVolume(s: string): string {
 }
 
 /**
+ * Levenshtein edit distance: the number of single-character insertions,
+ * deletions, or substitutions needed to turn one string into the other.
+ * Used to detect typo-level differences ("Wiskey" vs "Whiskey" = 1) so they
+ * can be routed to human review instead of hard-failing. Classic dynamic
+ * programming, one row at a time.
+ */
+function editDistance(a: string, b: string): number {
+  if (a === b) return 0;
+  let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    const curr = [i];
+    for (let j = 1; j <= b.length; j++) {
+      curr[j] = Math.min(
+        prev[j] + 1, // delete from a
+        curr[j - 1] + 1, // insert into a
+        prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1) // substitute
+      );
+    }
+    prev = curr;
+  }
+  return prev[b.length];
+}
+
+/**
+ * True when two normalized strings differ only at typo level: at most 2
+ * edits, and only for strings long enough (5+ chars) that a couple of edits
+ * can't turn one real word into a completely different one.
+ *
+ * Numbers are exempt from typo forgiveness: "13.5" vs "135" is edit
+ * distance 1 but a completely different value, so any difference in the
+ * numeric tokens disqualifies the near-miss.
+ */
+function isNearMiss(a: string, b: string): boolean {
+  const numbers = (s: string) => (s.match(/\d+(?:\.\d+)?/g) ?? []).join(",");
+  if (numbers(a) !== numbers(b)) return false;
+  return Math.min(a.length, b.length) >= 5 && editDistance(a, b) <= 2;
+}
+
+/**
  * Standard comparison for brand name and class/type.
  * Decision ladder:
  *   1. not printed on the label            -> not_found
  *   2. identical after normalize()         -> match
  *   3. one string contains the other       -> review (human decides)
- *   4. anything else                       -> mismatch
+ *   4. typo-level difference (edit dist)   -> review (human decides)
+ *   5. anything else                       -> mismatch
+ * Steps 3 and 4 implement the "you need judgment" requirement from
+ * discovery: obviously-the-same-thing cases are escalated, never failed.
  */
 function compareText(
   id: string,
@@ -229,6 +271,18 @@ function compareText(
       found,
       status: "review",
       note: "Close but not identical. Please confirm.",
+    };
+  }
+  // Typo-level difference (e.g. application says "Wiskey", label says
+  // "Whiskey") — obviously the same thing, so escalate instead of failing.
+  if (isNearMiss(e, f)) {
+    return {
+      id,
+      label,
+      expected,
+      found,
+      status: "review",
+      note: "Nearly identical (possible typo). Please confirm.",
     };
   }
   return { id, label, expected, found, status: "mismatch" };
@@ -344,15 +398,37 @@ export function verifyAgainstApplication(
         status: "not_found",
       });
     } else {
+      // Compare in three steps:
+      //   1. full normalized value equal ("750 mL" == "750ML") -> match
+      //   2. quantity equal but a unit missing on one side ("750" vs
+      //      "750 mL") -> review; the agent confirms rather than the tool
+      //      hard-failing an obvious data-entry shortcut
+      //   3. anything else -> mismatch
+      const nvExpected = normalizeVolume(expected);
+      const nvFound = normalizeVolume(found);
+      const splitQty = (s: string) => {
+        const m = s.match(/^([0-9.]+)(.*)$/);
+        return m ? { qty: m[1], unit: m[2] } : { qty: "", unit: s };
+      };
+      const a = splitQty(nvExpected);
+      const b = splitQty(nvFound);
+      let status: CheckStatus;
+      let note: string | undefined;
+      if (nvExpected === nvFound) {
+        status = "match";
+      } else if (a.qty !== "" && a.qty === b.qty && (a.unit === "" || b.unit === "")) {
+        status = "review";
+        note = "The quantity matches but a unit is missing. Please confirm.";
+      } else {
+        status = "mismatch";
+      }
       checks.push({
         id: "net",
         label: "Net contents",
         expected,
         found,
-        status:
-          normalizeVolume(expected) === normalizeVolume(found)
-            ? "match"
-            : "mismatch",
+        status,
+        note,
       });
     }
   }

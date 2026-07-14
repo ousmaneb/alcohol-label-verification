@@ -158,5 +158,26 @@ const r20 = verifyAgainstApplication(
 );
 expect("accented vs plain brand", r20.checks.find(c => c.id === "brand")!.status, "match");
 
+
+// 21. Dave's judgment principle applied to typos: "Wiskey" vs "Whiskey"
+const r21 = verifyAgainstApplication(goodExtraction, { ...app, productClass: "Kentucky Straight Bourbon Wiskey" });
+expect("typo class -> review", r21.checks.find(c => c.id === "class")!.status, "review");
+
+// 22. typo in brand also goes to review, not mismatch
+const r22 = verifyAgainstApplication({ ...goodExtraction, brand_name: "OLD TOM DISTILERY" }, app);
+expect("typo brand -> review", r22.checks.find(c => c.id === "brand")!.status, "review");
+
+// 23. genuinely different short words are NOT treated as typos
+const r23 = verifyAgainstApplication({ ...goodExtraction, product_class: "Red Wine" }, { ...app, productClass: "Rye Whiskey" });
+expect("different class still mismatch", r23.checks.find(c => c.id === "class")!.status, "mismatch");
+
+// 24. net contents: quantity matches but unit missing -> review
+const r24 = verifyAgainstApplication(goodExtraction, { ...app, netContents: "750" });
+expect("unitless net -> review", r24.checks.find(c => c.id === "net")!.status, "review");
+
+// 25. net contents: different quantity still fails
+const r25 = verifyAgainstApplication(goodExtraction, { ...app, netContents: "375 mL" });
+expect("wrong quantity net -> mismatch", r25.checks.find(c => c.id === "net")!.status, "mismatch");
+
 console.log(failures === 0 ? "\nALL TESTS PASSED" : `\n${failures} FAILURES`);
 process.exit(failures === 0 ? 0 : 1);

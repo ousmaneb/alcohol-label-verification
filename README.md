@@ -40,10 +40,10 @@ one at a time.
 
 | Check | How it is compared |
 |---|---|
-| Brand name | Case, punctuation, apostrophe, and accent insensitive ("STONE'S THROW" matches "Stone's Throw"; "CHÂTEAU RIVIÈRE" matches "Chateau Riviere"). Near-matches go to human review, never silently passed or failed |
+| Brand name | Case, punctuation, apostrophe, and accent insensitive ("STONE'S THROW" matches "Stone's Throw"; "CHÂTEAU RIVIÈRE" matches "Chateau Riviere"). Near-matches and typo-level differences ("Wiskey" vs "Whiskey") go to human review, never silently passed or failed |
 | Alcohol content | Numeric ABV comparison; handles printed formats like "45% Alc./Vol. (90 Proof)" |
 | Class / type (optional) | Text comparison, same rules as brand name |
-| Net contents (optional) | Unit insensitive ("750 mL" matches "750ML"; "12 fl oz" matches "12 FL OZ") |
+| Net contents (optional) | Unit insensitive ("750 mL" matches "750ML"; "12 fl oz" matches "12 FL OZ"). A matching quantity with a missing unit ("750" vs "750 mL") goes to review |
 | Bottler / producer (optional) | Lenient: the printed statement may add "BOTTLED BY" or vary formatting; partial overlap goes to review |
 | Country of origin (optional, imports) | Lenient ("France" matches "PRODUCT OF FRANCE") |
 | Government warning | Word-for-word against the statement required by 27 CFR Part 16. Wrong wording, or a heading not printed as capital-letter GOVERNMENT WARNING, is a hard failure. A heading that does not appear bold goes to human review; if boldness cannot be judged from the photo, the agent is not bothered |
