@@ -1,3 +1,4 @@
+// Author: Dr. Ousmane Barry
 /**
  * app/api/verify/route.ts — the server side of the app.
  *

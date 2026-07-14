@@ -1,3 +1,4 @@
+// Author: Dr. Ousmane Barry
 /**
  * app/batch/page.tsx — Batch mode: check MANY labels in one go.
  *

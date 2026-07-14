@@ -1,3 +1,4 @@
+// Author: Dr. Ousmane Barry
 /**
  * app/layout.tsx — the outer HTML shell shared by every page.
  *

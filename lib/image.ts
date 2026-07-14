@@ -1,3 +1,4 @@
+// Author: Dr. Ousmane Barry
 /**
  * lib/image.ts — prepares label photos in the browser before upload.
  *

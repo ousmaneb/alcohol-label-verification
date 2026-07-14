@@ -1,3 +1,4 @@
+# Author: Dr. Ousmane Barry
 # Continuous integration: runs on every push and pull request.
 # Verifies the code type-checks, the unit tests pass, and the app builds.
 # Browser E2E tests (npm run test:e2e) are not run here because they need

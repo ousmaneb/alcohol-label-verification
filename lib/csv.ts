@@ -1,3 +1,4 @@
+// Author: Dr. Ousmane Barry
 /**
  * lib/csv.ts — reads the applications spreadsheet for Batch mode.
  *

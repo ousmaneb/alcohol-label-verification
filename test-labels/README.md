@@ -1,3 +1,4 @@
+<!-- Author: Dr. Ousmane Barry -->
 # Sample test labels
 
 Rendered sample labels for testing the app, each with a known expected

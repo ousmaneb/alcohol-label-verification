@@ -1,3 +1,4 @@
+// Author: Dr. Ousmane Barry
 /**
  * app/page.tsx — the main screen: check ONE label against ONE application.
  *

@@ -1,3 +1,4 @@
+// Author: Dr. Ousmane Barry
 /**
  * lib/verification.ts — the "brain" of the app.
  *

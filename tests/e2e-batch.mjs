@@ -1,3 +1,4 @@
+// Author: Dr. Ousmane Barry
 /**
  * Browser end-to-end tests, driven with Puppeteer against a running app.
  *

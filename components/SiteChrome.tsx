@@ -1,3 +1,4 @@
+// Author: Dr. Ousmane Barry
 /**
  * components/SiteChrome.tsx — the shared page "frame".
  *

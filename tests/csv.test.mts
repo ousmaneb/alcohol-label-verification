@@ -1,3 +1,4 @@
+// Author: Dr. Ousmane Barry
 /**
  * tests/csv.test.mts — unit tests for the batch CSV parser.
  *

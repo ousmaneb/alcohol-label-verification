@@ -1,3 +1,4 @@
+// Author: Dr. Ousmane Barry
 /**
  * tests/verification.test.mts — unit tests for the comparison logic.
  *

@@ -2,6 +2,8 @@
 
 # LabelProof: AI-Powered Alcohol Label Verification
 
+**Author: Dr. Ousmane Barry**
+
 A prototype for TTB label-compliance agents. An agent enters what the COLA
 application says, adds a photo of the label, and presses **Check Label**. The
 app reads the label with Claude vision and reports, field by field, whether
