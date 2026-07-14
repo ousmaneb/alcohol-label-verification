@@ -50,6 +50,60 @@ Every verdict is one of **Matches**, **Does not match**, **Not on label**, or
 **Needs review**. The tool never silently decides borderline cases; it
 escalates them to the agent with both values shown side by side.
 
+## Approach, tools, and assumptions
+
+### Approach
+
+1. **Split reading from deciding.** The AI model only transcribes what is
+   printed on the label (structured output, validated against a schema).
+   Plain TypeScript performs every comparison and renders the verdict. This
+   keeps decisions deterministic, auditable, and unit-testable, which
+   matters for a government compliance tool.
+2. **Design to the discovery notes.** Every feature traces to a stakeholder
+   statement: the 5-second budget drove the model choice and image
+   downscaling, "my mother could figure it out" drove the one-screen UI,
+   importer season drove batch mode, and agent anecdotes became unit tests
+   (STONE'S THROW, the rejected title-case warning).
+3. **Escalate, never guess.** Borderline text goes to "Needs review",
+   unreadable photos are flagged instead of interpreted, and the agent
+   always makes the final call.
+4. **Test at three levels.** Unit tests on the comparison rules, live API
+   tests against real sample labels, and Puppeteer browser tests that drive
+   the UI the way an agent would.
+
+### Tools used
+
+| Tool | Role |
+|---|---|
+| Next.js 15, React 19, TypeScript | Full-stack app framework; one API route, two pages, no database |
+| Anthropic Claude API (`claude-haiku-4-5`) | Vision model that reads the label; chosen for speed to meet the 5-second requirement |
+| Zod + structured outputs (`messages.parse`) | Guarantees the model returns machine-readable JSON matching a declared schema |
+| Public Sans (via `next/font`) | U.S. federal design system typeface, bundled at build time so no runtime font CDN |
+| Puppeteer + headless Chrome | Browser end-to-end tests, and rendering the sample label images in `test-labels/` |
+| Plain CSS | No UI framework; keeps the prototype dependency-light |
+
+### Assumptions made
+
+- **Application data is entered manually or via CSV.** No COLA system
+  integration in the prototype, per the IT discovery interview.
+- **One label image per check.** Assumed the photo shows the fields being
+  verified; multi-image (front and back label) support is listed as a next
+  step.
+- **Exact ABV match.** The label is checked against the application value,
+  not against TTB's class-specific tolerance bands; tolerance rules could be
+  added to the comparison layer without touching the AI.
+- **Warning text per 27 CFR Part 16.** The statutory statement is compared
+  word for word; capitalization of GOVERNMENT WARNING is enforced as a hard
+  failure and bold print as a review item, matching how agents described
+  adjudicating it.
+- **English-language labels** and Latin-script brand names (accents are
+  folded for comparison).
+- **Internal tool, no authentication.** Scoped as a prototype on a trusted
+  network; results are advisory and never stored.
+- **Time verdicts are advisory.** The 5-second target is measured and
+  displayed per check, assuming typical broadband; the first request after
+  deploy is slower (model schema compilation).
+
 ## How discovery shaped the design
 
 **"If we can't get results back in about 5 seconds, nobody's going to use it."**
