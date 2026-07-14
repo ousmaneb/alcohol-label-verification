@@ -164,6 +164,25 @@ export function parseApplicationsCsv(text: string): CsvParseResult {
   return { rows, errors };
 }
 
+/**
+ * Decides whether a photo file should be paired with a CSV row.
+ * Matches on the exact filename (case-insensitive), or on the filename
+ * ignoring the extension: phones frequently convert or rename image
+ * formats when picking from the photo library (HEIC to JPEG, .png to
+ * .jpeg), so "old-tom-good.jpeg" must still pair with a CSV row that
+ * says "old-tom-good.png".
+ */
+export function photoMatchesRow(
+  photoName: string,
+  rowFilename: string
+): boolean {
+  const clean = (s: string) => s.trim().toLowerCase();
+  if (clean(photoName) === clean(rowFilename)) return true;
+  const stem = (s: string) => clean(s).replace(/\.[^.]+$/, "");
+  const a = stem(photoName);
+  return a !== "" && a === stem(rowFilename);
+}
+
 export const CSV_TEMPLATE =
   "filename,brand_name,abv,class_type,net_contents,bottler,country_of_origin\n" +
   'old-tom-good.png,OLD TOM DISTILLERY,45,Kentucky Straight Bourbon Whiskey,750 mL,"Old Tom Distillery, Louisville, KY",\n' +

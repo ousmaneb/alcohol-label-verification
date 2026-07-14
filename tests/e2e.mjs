@@ -110,16 +110,22 @@ await page.screenshot({ path: `${SHOTS}/e2e-2-single-fail.png` });
 await page.goto(`${APP}/batch`, { waitUntil: "networkidle0" });
 
 const inputs = await page.$$('input[type="file"]');
+// Photos FIRST, CSV second: this order used to silently discard the photos.
+await inputs[1].uploadFile(
+  `${LABELS}/old-tom-good.png`,
+  `${LABELS}/old-tom-bad.png`
+);
+await page.waitForFunction(() =>
+  document.body.textContent.includes("2 photos added. Now add the application list")
+);
+check("photos kept while CSV not yet added", true);
+
 await inputs[0].uploadFile(`${LABELS}/applications.csv`);
 await page.waitForFunction(() =>
   document.body.textContent.includes("7 applications loaded")
 );
 check("CSV parsed: 7 applications loaded", true);
 
-await inputs[1].uploadFile(
-  `${LABELS}/old-tom-good.png`,
-  `${LABELS}/old-tom-bad.png`
-);
 await page.waitForFunction(() =>
   document.body.textContent.includes("2 of 7 applications have a matching photo")
 );

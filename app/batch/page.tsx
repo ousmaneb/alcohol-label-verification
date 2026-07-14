@@ -20,7 +20,12 @@
 
 import { useRef, useState } from "react";
 import { Masthead, SiteFooter } from "@/components/SiteChrome";
-import { parseApplicationsCsv, CSV_TEMPLATE, type BatchRow } from "@/lib/csv";
+import {
+  parseApplicationsCsv,
+  photoMatchesRow,
+  CSV_TEMPLATE,
+  type BatchRow,
+} from "@/lib/csv";
 import { prepareImage } from "@/lib/image";
 
 // Lifecycle of one row in the batch:
@@ -76,6 +81,11 @@ function issueSummary(checks: CheckResult[]): string {
 
 export default function BatchPage() {
   const [items, setItems] = useState<BatchItem[]>([]);
+  // All photos the agent has added so far, whether or not they matched a
+  // CSV row yet. Keeping them in a pool means the CSV and the photos can be
+  // added in either order (previously, photos added before the CSV were
+  // silently lost).
+  const [photoPool, setPhotoPool] = useState<File[]>([]);
   const [csvErrors, setCsvErrors] = useState<string[]>([]);
   const [csvName, setCsvName] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
@@ -97,30 +107,37 @@ export default function BatchPage() {
     const { rows, errors } = parseApplicationsCsv(text);
     setCsvName(file.name);
     setCsvErrors(errors);
-    setItems((prev) => {
-      const photosByName = new Map(
-        prev.filter((i) => i.file).map((i) => [i.row.filename.toLowerCase(), i.file!])
-      );
-      return rows.map((row) => {
-        const file = photosByName.get(row.filename.toLowerCase()) ?? null;
-        return { row, file, status: file ? "waiting" : "no_photo" };
-      });
-    });
+    // Pair every row with a photo from the pool (works whether the photos
+    // were added before or after the CSV).
+    setItems(
+      rows.map((row) => {
+        const match =
+          photoPool.find((f) => photoMatchesRow(f.name, row.filename)) ?? null;
+        return { row, file: match, status: match ? "waiting" : "no_photo" };
+      })
+    );
   }
 
   /**
-   * Called when the agent drops/picks label photos (many at once). Each
-   * photo is attached to the CSV row whose "filename" column matches its
-   * name (case-insensitive). Photos with no matching row are ignored.
+   * Called when the agent drops/picks label photos (many at once). Photos
+   * go into the pool (so the CSV can arrive later), and any that match a
+   * loaded CSV row by filename are attached to it immediately. Matching is
+   * extension-insensitive because phones rename and convert image formats.
    */
   function handlePhotos(files: FileList | null) {
     if (!files || files.length === 0) return;
     setFinished(false);
     const list = Array.from(files).filter((f) => f.type.startsWith("image/"));
+    if (list.length === 0) return;
+    // Add to the pool, replacing any earlier photo with the same name.
+    setPhotoPool((prev) => [
+      ...prev.filter((p) => !list.some((f) => f.name === p.name)),
+      ...list,
+    ]);
     setItems((prev) =>
       prev.map((item) => {
-        const match = list.find(
-          (f) => f.name.toLowerCase() === item.row.filename.toLowerCase()
+        const match = list.find((f) =>
+          photoMatchesRow(f.name, item.row.filename)
         );
         return match
           ? { ...item, file: match, status: "waiting" as const }
@@ -141,6 +158,14 @@ export default function BatchPage() {
   }
 
   const matched = items.filter((i) => i.file !== null).length;
+  // Photos in the pool that paired with no CSV row (surfaced in the UI so
+  // the agent understands why a photo seems to have been "ignored").
+  const unmatchedPhotos =
+    items.length > 0
+      ? photoPool.filter(
+          (f) => !items.some((i) => photoMatchesRow(f.name, i.row.filename))
+        )
+      : [];
   const doneCount = items.filter(
     (i) => i.status === "done" || i.status === "error"
   ).length;
@@ -388,10 +413,37 @@ export default function BatchPage() {
               onChange={(e) => handlePhotos(e.target.files)}
             />
 
+            {/* Feedback so nothing fails silently: photo counts, and an
+                explanation for any photo that didn't pair with a CSV row. */}
+            {photoPool.length > 0 && items.length === 0 && (
+              <p className="required-note" style={{ marginTop: 12 }}>
+                {photoPool.length} photo{photoPool.length === 1 ? "" : "s"}{" "}
+                added. Now add the application list (CSV) in step 1.
+              </p>
+            )}
             {items.length > 0 && (
               <p className="required-note" style={{ marginTop: 12 }}>
-                {matched} of {items.length} applications have a matching photo.
+                {photoPool.length} photo{photoPool.length === 1 ? "" : "s"}{" "}
+                added. {matched} of {items.length} applications have a
+                matching photo.
               </p>
+            )}
+            {items.length > 0 && unmatchedPhotos.length > 0 && (
+              <div className="quality-flag" role="alert">
+                <strong>
+                  {unmatchedPhotos.length} photo
+                  {unmatchedPhotos.length === 1 ? "" : "s"} did not match any
+                  row in the CSV:
+                </strong>{" "}
+                {unmatchedPhotos
+                  .slice(0, 5)
+                  .map((f) => f.name)
+                  .join(", ")}
+                {unmatchedPhotos.length > 5 ? ", …" : ""}. Photo names must
+                match the CSV&apos;s filename column (a different extension,
+                like .jpeg instead of .png, is fine). If your phone renamed
+                the photos, rename them back or update the CSV.
+              </div>
             )}
 
             <button

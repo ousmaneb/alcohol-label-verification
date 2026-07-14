@@ -6,7 +6,7 @@
  * Covers: the bundled template, quoted fields with embedded commas and
  * quotes, header-name aliases, and missing-column error reporting.
  */
-import { parseApplicationsCsv, CSV_TEMPLATE } from "../lib/csv.ts";
+import { parseApplicationsCsv, photoMatchesRow, CSV_TEMPLATE } from "../lib/csv.ts";
 
 let failures = 0;
 function expect(name: string, actual: unknown, expected: unknown) {
@@ -61,6 +61,14 @@ const badRow = parseApplicationsCsv(
 );
 expect("good row kept", badRow.rows.length, 1);
 expect("bad row error mentions line", badRow.errors[0]?.includes("Row 3"), true);
+
+
+// 6. photo pairing: exact, case-insensitive, and extension-insensitive
+expect("exact name matches", photoMatchesRow("old-tom-good.png", "old-tom-good.png"), true);
+expect("case-insensitive match", photoMatchesRow("Old-Tom-Good.PNG", "old-tom-good.png"), true);
+expect("extension differs still matches", photoMatchesRow("old-tom-good.jpeg", "old-tom-good.png"), true);
+expect("different photo does not match", photoMatchesRow("IMG_0123.jpeg", "old-tom-good.png"), false);
+expect("empty stem does not match", photoMatchesRow(".png", "old-tom-good.png"), false);
 
 console.log(failures === 0 ? "\nALL CSV TESTS PASSED" : `\n${failures} FAILURES`);
 process.exit(failures === 0 ? 0 : 1);
