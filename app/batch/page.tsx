@@ -1,3 +1,20 @@
+/**
+ * app/batch/page.tsx — Batch mode: check MANY labels in one go.
+ *
+ * Built for importer season, when 200-300 applications arrive at once.
+ * The agent's flow:
+ *
+ *   Step 1: drop a CSV listing the applications (parsed by lib/csv.ts)
+ *   Step 2: drop all the label photos; each CSV row is paired to a photo
+ *           whose filename matches its "filename" column
+ *   Press "Check N Labels"
+ *     -> up to 4 labels are verified at the same time (see CONCURRENCY)
+ *     -> a progress bar and per-row statuses update live
+ *     -> when done, results can be downloaded as a CSV
+ *
+ * Each individual label goes through the exact same /api/verify route as
+ * the single-label page; this page is just an orchestrator around it.
+ */
 "use client";
 
 import { useRef, useState } from "react";
@@ -5,6 +22,12 @@ import { Masthead, SiteFooter } from "@/components/SiteChrome";
 import { parseApplicationsCsv, CSV_TEMPLATE, type BatchRow } from "@/lib/csv";
 import { prepareImage } from "@/lib/image";
 
+// Lifecycle of one row in the batch:
+//   no_photo -> the CSV row has no matching photo yet
+//   waiting  -> ready, queued behind other rows
+//   checking -> its request to /api/verify is in flight
+//   done     -> finished (overall + checks are filled in)
+//   error    -> the request itself failed (network, server error)
 type ItemStatus = "waiting" | "no_photo" | "checking" | "done" | "error";
 
 interface CheckResult {
@@ -32,8 +55,12 @@ const OVERALL_TEXT = {
   review: "Needs review",
 };
 
+// How many labels are checked at the same time. Higher = faster wall-clock
+// time but more simultaneous API requests; 4 is a comfortable middle ground
+// (a 300-label batch finishes in roughly 4-5 minutes).
 const CONCURRENCY = 4;
 
+/** One-line summary of a label's problems, shown in the Details column. */
 function issueSummary(checks: CheckResult[]): string {
   const problems = checks.filter((c) => c.status !== "match");
   if (problems.length === 0) return "All checks passed";
@@ -57,6 +84,11 @@ export default function BatchPage() {
   const [dragCsv, setDragCsv] = useState(false);
   const [dragPhotos, setDragPhotos] = useState(false);
 
+  /**
+   * Called when the agent drops/picks the applications CSV. Parses it and
+   * builds one BatchItem per valid row. If photos were added before the CSV
+   * (either order works), they are re-paired to the new rows by filename.
+   */
   async function handleCsv(file: File | undefined | null) {
     if (!file) return;
     setFinished(false);
@@ -75,6 +107,11 @@ export default function BatchPage() {
     });
   }
 
+  /**
+   * Called when the agent drops/picks label photos (many at once). Each
+   * photo is attached to the CSV row whose "filename" column matches its
+   * name (case-insensitive). Photos with no matching row are ignored.
+   */
   function handlePhotos(files: FileList | null) {
     if (!files || files.length === 0) return;
     setFinished(false);
@@ -91,6 +128,7 @@ export default function BatchPage() {
     );
   }
 
+  /** Downloads a starter CSV showing the expected column layout. */
   function downloadTemplate() {
     const blob = new Blob([CSV_TEMPLATE], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
@@ -106,6 +144,13 @@ export default function BatchPage() {
     (i) => i.status === "done" || i.status === "error"
   ).length;
 
+  /**
+   * Runs the whole batch using a small "worker pool":
+   * CONCURRENCY worker functions run at once, each repeatedly taking the
+   * next unprocessed row (via the shared `cursor` index) until none remain.
+   * That keeps exactly 4 requests in flight without any extra libraries.
+   * Every state update goes through setItems so the table re-renders live.
+   */
   async function runBatch() {
     if (running || matched === 0) return;
     setRunning(true);
@@ -177,6 +222,11 @@ export default function BatchPage() {
     setFinished(true);
   }
 
+  /**
+   * Builds verification-results.csv in the browser and triggers a download
+   * (a temporary <a> element pointing at an in-memory blob; no server round
+   * trip). Agents use this to work the exceptions in Excel.
+   */
   function exportResults() {
     // Escape for CSV and neutralize spreadsheet formula injection: a cell
     // beginning with = + - @ or a tab would otherwise be evaluated as a

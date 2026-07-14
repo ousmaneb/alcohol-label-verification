@@ -1,8 +1,29 @@
+/**
+ * lib/verification.ts — the "brain" of the app.
+ *
+ * The app splits label checking into two very different jobs:
+ *
+ *   1. READING the label (done by the Claude AI model, with vision).
+ *      The AI is only asked to transcribe what is printed on the label,
+ *      exactly as printed. It never decides pass/fail.
+ *
+ *   2. COMPARING what was read against the application (done by the plain
+ *      TypeScript code in this file). Because this part is ordinary code,
+ *      the same inputs always produce the same verdict, and every rule can
+ *      be unit tested. That makes the results auditable, which matters for
+ *      a government compliance tool.
+ *
+ * This file defines:
+ *   - LabelExtractionSchema: the exact shape of data we ask the AI to return
+ *   - the comparison helpers (normalize, compareText, compareLoose, ...)
+ *   - verifyAgainstApplication(): runs every check and builds the verdict
+ */
 import { z } from "zod";
 
 /**
  * The health warning statement required verbatim on every alcohol beverage
- * label by 27 CFR Part 16.
+ * label by 27 CFR Part 16. We compare the label's warning text against this
+ * string, so a single changed word is detected.
  */
 export const GOVERNMENT_WARNING_TEXT =
   "GOVERNMENT WARNING: (1) According to the Surgeon General, women should not " +
@@ -10,7 +31,18 @@ export const GOVERNMENT_WARNING_TEXT =
   "defects. (2) Consumption of alcoholic beverages impairs your ability to " +
   "drive a car or operate machinery, and may cause health problems.";
 
-/** What Claude extracts from the label image. Comparison happens in code. */
+/**
+ * What Claude extracts from the label image. Comparison happens in code.
+ *
+ * This is a Zod schema: a machine-readable description of the JSON object we
+ * want back from the AI. We send it with the API request ("structured
+ * output"), and the API guarantees the response matches this shape — so we
+ * never have to parse free-form text. Each .describe() string is read by the
+ * model and acts as an instruction for that field.
+ *
+ * Every field is .nullable() on purpose: if something is not printed on the
+ * label (or not legible), the model must return null instead of guessing.
+ */
 export const LabelExtractionSchema = z.object({
   brand_name: z
     .string()
@@ -76,8 +108,14 @@ export const LabelExtractionSchema = z.object({
     ),
 });
 
+/** The TypeScript type derived automatically from the schema above. */
 export type LabelExtraction = z.infer<typeof LabelExtractionSchema>;
 
+/**
+ * What the compliance agent typed into the form (or a row of the batch CSV).
+ * brandName and abv are required; the rest are optional and only checked
+ * when the agent filled them in.
+ */
 export interface ApplicationData {
   brandName: string;
   abv: string;
@@ -87,8 +125,18 @@ export interface ApplicationData {
   countryOfOrigin?: string;
 }
 
+/**
+ * Every individual check ends in exactly one of these four states:
+ *   match     - label agrees with the application
+ *   mismatch  - label clearly disagrees (hard failure)
+ *   not_found - the field is not visible on the label at all
+ *   review    - too close to call; a human agent must decide
+ * "review" exists because discovery showed agents need judgment calls
+ * escalated to them, never silently decided by the tool.
+ */
 export type CheckStatus = "match" | "mismatch" | "not_found" | "review";
 
+/** One row of the results table shown to the agent. */
 export interface CheckResult {
   id: string;
   label: string;
@@ -127,12 +175,20 @@ function normalize(s: string): string {
     .trim();
 }
 
-/** Letters and digits only — for the strictest text comparison (warning statement). */
+/**
+ * Letters and digits only — the strictest comparison, used for the
+ * government warning statement where the WORDING must be identical but
+ * punctuation/spacing/case differences from photo transcription are noise.
+ */
 function lettersOnly(s: string): string {
   return s.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
 }
 
-/** Units-insensitive comparison for net contents: "750 mL" == "750ML". */
+/**
+ * Units-insensitive comparison for net contents: "750 mL" == "750ML" ==
+ * "750 milliliters". Each replace() maps one family of unit spellings to a
+ * single canonical form before comparing.
+ */
 function normalizeVolume(s: string): string {
   return s
     .toLowerCase()
@@ -142,6 +198,14 @@ function normalizeVolume(s: string): string {
     .replace(/[^a-z0-9.]/g, "");
 }
 
+/**
+ * Standard comparison for brand name and class/type.
+ * Decision ladder:
+ *   1. not printed on the label            -> not_found
+ *   2. identical after normalize()         -> match
+ *   3. one string contains the other       -> review (human decides)
+ *   4. anything else                       -> mismatch
+ */
 function compareText(
   id: string,
   label: string,
@@ -204,6 +268,13 @@ function compareLoose(
   return { id, label, expected, found, status: "mismatch" };
 }
 
+/**
+ * The main entry point: takes what the AI read off the label (extraction)
+ * and what the agent typed (app), runs every applicable check, and returns
+ * the list of per-field verdicts plus an overall pass/fail/review outcome.
+ * Pure function: no network, no side effects — which is what makes it easy
+ * to unit test.
+ */
 export function verifyAgainstApplication(
   extraction: LabelExtraction,
   app: ApplicationData
@@ -215,8 +286,12 @@ export function verifyAgainstApplication(
     compareText("brand", "Brand name", app.brandName, extraction.brand_name)
   );
 
-  // Alcohol content — numeric comparison
+  // Alcohol content — numeric comparison, not text comparison. The label may
+  // print "45% Alc./Vol. (90 Proof)" while the application says "45"; we
+  // compare the numbers (45 == 45), and show the label's raw text to the
+  // agent for context.
   {
+    // Strip everything except digits and the decimal point, e.g. "13.5%" -> 13.5
     const expectedAbv = parseFloat(app.abv.replace(/[^0-9.]/g, ""));
     const foundAbv = extraction.abv_percent;
     const foundDisplay =
@@ -236,6 +311,8 @@ export function verifyAgainstApplication(
         label: "Alcohol content",
         expected: `${expectedAbv}% ABV`,
         found: foundDisplay,
+        // 0.005 tolerance only absorbs floating-point rounding noise;
+        // a genuinely different ABV (44.9 vs 45) still fails.
         status: Math.abs(foundAbv - expectedAbv) < 0.005 ? "match" : "mismatch",
       });
     }
@@ -303,7 +380,11 @@ export function verifyAgainstApplication(
     );
   }
 
-  // Government warning — always required
+  // Government warning — the only check that is ALWAYS required (federal law
+  // mandates it on every alcohol beverage label). Three things are verified:
+  //   1. the wording is identical to the statutory text (lettersOnly compare)
+  //   2. the heading reads "GOVERNMENT WARNING" in capital letters
+  //   3. the heading appears in bold type (judged visually by the AI)
   {
     const found = extraction.government_warning_text;
     if (!extraction.government_warning_present || !found) {
@@ -360,6 +441,10 @@ export function verifyAgainstApplication(
     }
   }
 
+  // Roll the individual checks up into one overall verdict:
+  //   any hard failure          -> "fail"
+  //   else any review/photo issue -> "review"
+  //   else                        -> "pass"
   const hasFailure = checks.some(
     (c) => c.status === "mismatch" || c.status === "not_found"
   );

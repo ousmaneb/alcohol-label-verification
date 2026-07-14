@@ -1,6 +1,18 @@
+/**
+ * components/SiteChrome.tsx — the shared page "frame".
+ *
+ * Both pages (single check and batch check) render the same masthead and
+ * footer, so they live here once instead of being duplicated. The masthead
+ * holds the LabelProof logo, the division eyebrow, and the two-tab
+ * navigation; `active` controls which tab is highlighted.
+ */
 import Link from "next/link";
 
-/** LabelProof mark: a label tag with a verification check. */
+/**
+ * LabelProof mark: a label tag with a verification check.
+ * Colors are props so the same mark works on light backgrounds (green tag)
+ * and on the dark green masthead (white tag).
+ */
 export function LogoMark({
   tagFill = "#1b9a1b",
   holeFill = "#f5c400",

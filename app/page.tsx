@@ -1,9 +1,26 @@
+/**
+ * app/page.tsx — the main screen: check ONE label against ONE application.
+ *
+ * "use client" means this component runs in the browser (it needs state,
+ * file uploads, and click handlers). The flow the agent sees:
+ *
+ *   Step 1: type the application details (brand, ABV, optional fields)
+ *   Step 2: add the label photo (drag-drop or click)
+ *   Press "Check Label"
+ *     -> photo is downscaled in the browser (lib/image.ts)
+ *     -> POST to /api/verify (the server route that talks to the AI)
+ *     -> results render as a color-coded table with per-field verdicts
+ *
+ * All state lives in this component with React useState; there is no global
+ * store because the whole screen is one self-contained form.
+ */
 "use client";
 
 import { useRef, useState } from "react";
 import { Masthead, SiteFooter } from "@/components/SiteChrome";
 import { prepareImage } from "@/lib/image";
 
+// These mirror the server's response shape (see lib/verification.ts).
 type CheckStatus = "match" | "mismatch" | "not_found" | "review";
 
 interface CheckResult {
@@ -22,6 +39,8 @@ interface VerificationResponse {
   elapsedMs: number;
 }
 
+// Human-readable wording for each verdict. Shown next to an icon so color
+// is never the only signal (accessibility).
 const STATUS_TEXT: Record<CheckStatus, string> = {
   match: "Matches",
   mismatch: "Does not match",
@@ -94,6 +113,7 @@ function UploadIcon() {
 const BannerIcon = StatusIcon;
 
 export default function Home() {
+  // ---- Form state: one piece of state per input field ----
   const [brandName, setBrandName] = useState("");
   const [abv, setAbv] = useState("");
   const [productClass, setProductClass] = useState("");
@@ -101,18 +121,22 @@ export default function Home() {
   const [bottler, setBottler] = useState("");
   const [countryOfOrigin, setCountryOfOrigin] = useState("");
 
+  // ---- Photo + request state ----
   const [image, setImage] = useState<{
-    base64: string;
-    mediaType: string;
-    previewUrl: string;
-    name: string;
+    base64: string;      // the downscaled photo, ready to send to the server
+    mediaType: string;   // always "image/jpeg" after downscaling
+    previewUrl: string;  // data: URL for the thumbnail preview
+    name: string;        // original filename, used in the preview alt text
   } | null>(null);
-  const [dragging, setDragging] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [dragging, setDragging] = useState(false); // highlights the dropzone
+  const [busy, setBusy] = useState(false);         // true while a check runs
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<VerificationResponse | null>(null);
+  // Ref to the hidden <input type="file">, so clicking the styled dropzone
+  // can open the native file picker.
   const fileInput = useRef<HTMLInputElement>(null);
 
+  /** Called when the agent picks or drops a photo file. */
   async function handleFile(file: File | undefined | null) {
     if (!file) return;
     if (!file.type.startsWith("image/")) {
@@ -129,8 +153,11 @@ export default function Home() {
     }
   }
 
+  // The Check Label button stays disabled until the two required fields and
+  // the photo are all present.
   const ready = image !== null && brandName.trim() !== "" && abv.trim() !== "";
 
+  /** Sends everything to the server and stores the verdict (or error). */
   async function verify() {
     if (!ready || busy) return;
     setBusy(true);
@@ -344,7 +371,9 @@ export default function Home() {
           </section>
         </div>
 
-        <div style={{ marginTop: 24 }} aria-live="polite">
+        {/* Results area. aria-live="polite" makes screen readers announce the
+          verdict when it appears, without stealing focus. */}
+      <div style={{ marginTop: 24 }} aria-live="polite">
           {error && <div className="error-box">{error}</div>}
 
           {result && (

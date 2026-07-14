@@ -1,6 +1,22 @@
+/**
+ * lib/csv.ts — reads the applications spreadsheet for Batch mode.
+ *
+ * Agents export a CSV listing many applications (one row per label). This
+ * file turns that raw text into typed ApplicationData objects. It runs in
+ * the browser, so nothing is uploaded until the actual label checks happen.
+ *
+ * Written by hand (no library) because the needs are small: quoted fields,
+ * escaped quotes, and flexible header names.
+ */
 import type { ApplicationData } from "@/lib/verification";
 
-/** Minimal RFC-4180-ish CSV parser: quoted fields, escaped quotes, CRLF. */
+/**
+ * Minimal RFC-4180-ish CSV parser: quoted fields, escaped quotes, CRLF.
+ * Walks the text one character at a time, tracking whether we are inside a
+ * quoted field. Inside quotes, commas and newlines are ordinary characters
+ * and a doubled quote ("") means one literal quote.
+ * Returns an array of rows, each row an array of cell strings.
+ */
 export function parseCsv(text: string): string[][] {
   const rows: string[][] = [];
   let row: string[] = [];
@@ -76,6 +92,13 @@ export interface CsvParseResult {
   errors: string[];
 }
 
+/**
+ * Turns the raw CSV text into validated application rows.
+ * Forgiving where it can be (header spelling variants, extra columns are
+ * ignored) and strict where it must be (filename, brand, and ABV are
+ * required). Problem rows are skipped with an error message that names the
+ * line number, so one bad row never sinks a 300-row import.
+ */
 export function parseApplicationsCsv(text: string): CsvParseResult {
   const raw = parseCsv(text);
   if (raw.length < 2) {

@@ -1,3 +1,19 @@
+/**
+ * app/api/verify/route.ts — the server side of the app.
+ *
+ * This is a Next.js API route: the exported POST function runs on the
+ * server whenever the browser sends a POST request to /api/verify.
+ *
+ * The flow for one verification:
+ *   browser sends { image, application data }
+ *     -> this route sends the image to the Claude API (vision model)
+ *     -> Claude returns a structured transcription of the label
+ *     -> lib/verification.ts compares transcription vs application
+ *     -> the verdict goes back to the browser as JSON
+ *
+ * The Anthropic API key is read from the server's environment and is never
+ * sent to the browser; the browser only ever talks to this route.
+ */
 import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { NextResponse } from "next/server";
@@ -23,6 +39,10 @@ function getClient(): Anthropic {
 // Override with CLAUDE_MODEL=claude-opus-4-8 if accuracy is preferred over speed.
 const MODEL = process.env.CLAUDE_MODEL ?? "claude-haiku-4-5";
 
+// The system prompt is the standing instruction the model reads before
+// looking at any image. The key rule: transcribe faithfully, never guess.
+// Pass/fail decisions are deliberately NOT the model's job (see
+// lib/verification.ts for why).
 const SYSTEM_PROMPT =
   "You are assisting TTB label-compliance agents. You read a photo of an " +
   "alcohol beverage label and transcribe specific fields exactly as printed. " +
@@ -31,6 +51,8 @@ const SYSTEM_PROMPT =
   "not visible or not legible, return null for it and describe the problem " +
   "in image_quality_issue.";
 
+// Only image formats the Claude vision API accepts. Checking against this
+// allowlist also stops arbitrary values from being forwarded to the API.
 const ALLOWED_MEDIA_TYPES = new Set([
   "image/jpeg",
   "image/png",
@@ -45,8 +67,11 @@ interface VerifyRequest {
 }
 
 export async function POST(request: Request) {
+  // Start the stopwatch first thing: the UI shows this elapsed time to keep
+  // the "results in about 5 seconds" requirement honest.
   const started = Date.now();
 
+  // ---- Step 1: read and validate the request from the browser ----
   let body: VerifyRequest;
   try {
     body = await request.json();
@@ -78,6 +103,10 @@ export async function POST(request: Request) {
   }
 
   try {
+    // ---- Step 2: ask Claude to read the label ----
+    // messages.parse() sends the image plus our Zod schema; the API
+    // guarantees the reply matches the schema ("structured output"), so
+    // response.parsed_output is already a typed object, not free text.
     const response = await getClient().messages.parse({
       model: MODEL,
       max_tokens: 1024,
@@ -121,13 +150,18 @@ export async function POST(request: Request) {
       );
     }
 
+    // ---- Step 3: compare the transcription against the application ----
+    // Deterministic code (lib/verification.ts) makes the actual decision.
     const result = verifyAgainstApplication(extraction, application);
     return NextResponse.json({
       ...result,
       elapsedMs: Date.now() - started,
-      extraction,
+      extraction, // included so the UI (and tests) can show what was read
     });
   } catch (error) {
+    // ---- Error handling: convert every failure into a plain-language ----
+    // message the agent can act on. Technical details go to the server log
+    // only, never to the browser.
     if (error instanceof Anthropic.AuthenticationError) {
       return NextResponse.json(
         { error: "Server is not configured: missing or invalid ANTHROPIC_API_KEY." },
