@@ -8,9 +8,9 @@ const publicSans = Public_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Label Verification | TTB",
+  title: "LabelProof | Label Verification",
   description:
-    "Compare an alcohol beverage label photo against its COLA application in seconds.",
+    "LabelProof compares an alcohol beverage label photo against its COLA application in seconds.",
 };
 
 export default function RootLayout({

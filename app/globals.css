@@ -72,9 +72,8 @@ header.masthead {
   width: 50px;
   height: 50px;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.12);
-  border: 1.5px solid rgba(255, 255, 255, 0.35);
-  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1.5px solid rgba(255, 255, 255, 0.3);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -82,8 +81,12 @@ header.masthead {
 }
 
 .brand-mark svg {
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
+}
+
+.wordmark-accent {
+  color: var(--yellow);
 }
 
 .masthead-text .eyebrow {

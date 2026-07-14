@@ -1,18 +1,30 @@
 import Link from "next/link";
 
-function ShieldIcon() {
+/** LabelProof mark: a label tag with a verification check. */
+export function LogoMark({
+  tagFill = "#1b9a1b",
+  holeFill = "#f5c400",
+  checkStroke = "#ffffff",
+}: {
+  tagFill?: string;
+  holeFill?: string;
+  checkStroke?: string;
+}) {
   return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M12 2l8 3.5v5.5c0 5-3.5 9-8 11-4.5-2-8-6-8-11V5.5L12 2z" />
-      <path d="M8.5 12l2.5 2.5 4.5-5" />
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"
+        fill={tagFill}
+      />
+      <circle cx="7.3" cy="7.3" r="1.7" fill={holeFill} />
+      <path
+        d="M10.4 13.2l2.2 2.2 4.3-4.9"
+        fill="none"
+        stroke={checkStroke}
+        strokeWidth="2.1"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
@@ -24,11 +36,17 @@ export function Masthead({ active }: { active: "single" | "batch" }) {
       <header className="masthead">
         <div className="masthead-inner">
           <div className="brand-mark" aria-hidden="true">
-            <ShieldIcon />
+            <LogoMark
+              tagFill="#ffffff"
+              holeFill="#f5c400"
+              checkStroke="#0a520a"
+            />
           </div>
           <div className="masthead-text">
             <div className="eyebrow">Label Compliance Division</div>
-            <h1>Label Verification</h1>
+            <h1>
+              Label<span className="wordmark-accent">Proof</span>
+            </h1>
           </div>
           <nav className="masthead-nav" aria-label="Mode">
             <Link
@@ -56,8 +74,8 @@ export function SiteFooter() {
   return (
     <footer className="site-footer">
       <div className="site-footer-inner">
-        Prototype for demonstration. Verification results are advisory and
-        require confirmation by a compliance agent.
+        LabelProof is a prototype for demonstration. Verification results are
+        advisory and require confirmation by a compliance agent.
       </div>
     </footer>
   );

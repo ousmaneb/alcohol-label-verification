@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 72" width="360" height="72">
+  <g transform="translate(8 12) scale(2)">
+    <path
+      d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"
+      fill="#1b9a1b"
+    />
+    <circle cx="7.3" cy="7.3" r="1.7" fill="#f5c400" />
+    <path
+      d="M10.4 13.2l2.2 2.2 4.3-4.9"
+      fill="none"
+      stroke="#ffffff"
+      stroke-width="2.1"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+  </g>
+  <text
+    x="68"
+    y="47"
+    font-family="'Public Sans', -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif"
+    font-size="34"
+    font-weight="800"
+    letter-spacing="-0.5"
+  >
+    <tspan fill="#17221c">Label</tspan><tspan fill="#1b9a1b">Proof</tspan>
+  </text>
+</svg>

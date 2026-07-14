@@ -1,4 +1,6 @@
-# AI-Powered Alcohol Label Verification
+<img src="public/logo.svg" alt="LabelProof" width="300">
+
+# LabelProof: AI-Powered Alcohol Label Verification
 
 A prototype for TTB label-compliance agents. An agent enters what the COLA
 application says, adds a photo of the label, and presses **Check Label**. The
