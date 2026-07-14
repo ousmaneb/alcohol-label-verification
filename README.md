@@ -214,17 +214,32 @@ network, Azure hosting, no COLA integration for the prototype):
 
 ## Testing
 
-Three layers, all currently passing:
+Three layers, all in the `tests/` folder and all currently passing. CI
+(GitHub Actions) runs the type check, unit tests, and production build on
+every push.
 
-1. **Unit tests** (26 assertions) on the deterministic comparison logic:
-   matches, mismatches, missing/altered/title-case warnings, bold judgment,
-   the STONE'S THROW scenario, accent folding, unit variations, lenient
-   bottler/origin matching, and image-quality flags.
-2. **Live API tests**: sample labels posted to `/api/verify` against the real
-   model, asserting the exact verdicts and per-check outcomes.
-3. **Browser end-to-end tests** (Puppeteer): the single-label flow (pass and
-   fail cases) and the batch flow with all seven samples, driven through the
-   real UI exactly as an agent would use it.
+1. **Unit tests** on the deterministic comparison logic and the CSV parser:
+
+   ```bash
+   npm test
+   ```
+
+   Covers matches, mismatches, missing/altered/title-case warnings, bold
+   judgment, the STONE'S THROW scenario, accent folding, unit variations,
+   lenient bottler/origin matching, image-quality flags, and CSV parsing
+   edge cases. No API key needed.
+
+2. **Browser end-to-end tests** (Puppeteer + your installed Chrome), which
+   drive the real UI and make real API calls. Start the dev server first:
+
+   ```bash
+   npm run dev            # in one terminal, with ANTHROPIC_API_KEY set
+   npm run test:e2e       # single-label flow: pass and fail cases
+   npm run test:e2e:batch # all seven samples through batch mode
+   ```
+
+3. **Sample labels with known outcomes** (see below) double as live API
+   regression tests.
 
 `test-labels/` contains seven rendered sample labels with known expected
 outcomes (3 pass, 3 fail, 1 needs review), covering spirits, imported wine

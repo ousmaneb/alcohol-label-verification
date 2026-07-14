@@ -1,0 +1,33 @@
+# Continuous integration: runs on every push and pull request.
+# Verifies the code type-checks, the unit tests pass, and the app builds.
+# Browser E2E tests (npm run test:e2e) are not run here because they need
+# a live ANTHROPIC_API_KEY and a running server; they are run locally.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Production build
+        run: npm run build
