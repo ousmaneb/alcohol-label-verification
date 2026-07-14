@@ -178,7 +178,15 @@ export default function BatchPage() {
   }
 
   function exportResults() {
-    const esc = (s: string) => `"${s.replace(/"/g, '""')}"`;
+    // Escape for CSV and neutralize spreadsheet formula injection: a cell
+    // beginning with = + - @ or a tab would otherwise be evaluated as a
+    // formula by Excel/LibreOffice when the agent opens the export. The
+    // source values come from an applicant-supplied CSV, so treat them as
+    // hostile (OWASP: prefix risky cells with a single quote).
+    const esc = (s: string) => {
+      const guarded = /^[=+\-@\t\r]/.test(s) ? `'${s}` : s;
+      return `"${guarded.replace(/"/g, '""')}"`;
+    };
     const lines = [
       "filename,brand_name,result,issues,seconds",
       ...items.map((i) => {
@@ -197,9 +205,9 @@ export default function BatchPage() {
         return [
           esc(i.row.filename),
           esc(i.row.application.brandName),
-          result,
+          esc(result),
           esc(issues),
-          i.seconds ? i.seconds.toFixed(1) : "",
+          esc(i.seconds ? i.seconds.toFixed(1) : ""),
         ].join(",");
       }),
     ];
