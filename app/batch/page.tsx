@@ -463,10 +463,13 @@ export default function BatchPage() {
                   </tr>
                 </thead>
                 <tbody>
+                  {/* data-label lets CSS re-print the column heading inside
+                      each cell when the table reflows into stacked cards on
+                      narrow (phone) screens. */}
                   {items.map((item, i) => (
                     <tr key={i}>
                       <td>{item.row.filename}</td>
-                      <td>
+                      <td data-label="Brand">
                         <strong>{item.row.application.brandName}</strong>
                       </td>
                       <td>
@@ -496,7 +499,7 @@ export default function BatchPage() {
                           </span>
                         )}
                       </td>
-                      <td>
+                      <td data-label="Details">
                         {item.status === "done" && item.checks
                           ? issueSummary(item.checks)
                           : item.status === "error"

@@ -536,6 +536,89 @@ table.checks tbody tr:last-child td {
   border-color: var(--line);
 }
 
+/* ── Mobile: reflow results tables into stacked cards ─────────
+   On narrow screens a 4-column table becomes unreadable (values wrap
+   letter by letter). Below 640px each row turns into a card: the check
+   name on top, the verdict pill directly under it, then the labeled
+   values. The data-label attribute on each cell re-prints its column
+   heading, since the real table header is hidden. */
+
+@media (max-width: 640px) {
+  html {
+    font-size: 16px;
+  }
+
+  .container {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  .card {
+    padding: 18px;
+  }
+
+  table.checks,
+  table.checks tbody {
+    display: block;
+  }
+
+  table.checks thead {
+    display: none;
+  }
+
+  table.checks tr {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin-bottom: 12px;
+    background: #fff;
+  }
+
+  table.checks tbody tr:hover {
+    background: #fff;
+  }
+
+  table.checks td {
+    display: block;
+    padding: 0;
+    border-bottom: none;
+  }
+
+  /* Reorder cells: name, then verdict, then the two values. */
+  table.checks td:nth-child(1) {
+    order: 0;
+    font-size: 1.05rem;
+  }
+  table.checks td:nth-child(4) {
+    order: 1;
+  }
+  table.checks td:nth-child(2) {
+    order: 2;
+  }
+  table.checks td:nth-child(3) {
+    order: 3;
+  }
+
+  td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--muted);
+    margin-bottom: 2px;
+  }
+
+  .banner {
+    font-size: 1.05rem;
+    padding: 14px 16px;
+  }
+}
+
 /* Batch progress */
 .progress-track {
   margin-top: 14px;

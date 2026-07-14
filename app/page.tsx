@@ -414,13 +414,16 @@ export default function Home() {
                   </tr>
                 </thead>
                 <tbody>
+                  {/* data-label lets CSS re-print the column heading inside
+                      each cell when the table reflows into stacked cards on
+                      narrow (phone) screens. */}
                   {result.checks.map((c) => (
                     <tr key={c.id}>
                       <td>
                         <strong>{c.label}</strong>
                       </td>
-                      <td>{c.expected}</td>
-                      <td>
+                      <td data-label="On application">{c.expected}</td>
+                      <td data-label="On label">
                         {c.found}
                         {c.note && <div className="note">{c.note}</div>}
                       </td>
