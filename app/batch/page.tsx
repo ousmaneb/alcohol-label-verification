@@ -201,15 +201,25 @@ export default function BatchPage() {
         try {
           const image = await prepareImage(item.file!);
           const started = Date.now();
-          const res = await fetch("/api/verify", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              imageBase64: image.base64,
-              mediaType: image.mediaType,
-              application: item.row.application,
-            }),
+          const payload = JSON.stringify({
+            imageBase64: image.base64,
+            mediaType: image.mediaType,
+            application: item.row.application,
           });
+          // The server rate-limits per IP. On a 429 with Retry-After, wait
+          // and retry (a few times) instead of failing the row. A 429
+          // without Retry-After is the daily cap, so it is not retried.
+          let res: Response;
+          for (let attempt = 0; ; attempt++) {
+            res = await fetch("/api/verify", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: payload,
+            });
+            const retryAfter = Number(res.headers.get("Retry-After"));
+            if (res.status !== 429 || !retryAfter || attempt >= 3) break;
+            await new Promise((r) => setTimeout(r, Math.min(retryAfter, 60) * 1000));
+          }
           const data = await res.json();
           if (!res.ok) throw new Error(data.error ?? "Verification failed");
           setItems((prev) =>

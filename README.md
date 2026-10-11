@@ -100,8 +100,9 @@ escalates them to the agent with both values shown side by side.
   adjudicating it.
 - **English-language labels** and Latin-script brand names (accents are
   folded for comparison).
-- **Internal tool, no authentication.** Scoped as a prototype on a trusted
-  network; results are advisory and never stored.
+- **Shared-password access, not per-user accounts.** Scoped as a prototype
+  on a trusted network; results are advisory and never stored. Access is
+  gated by one shared password (see Security settings below).
 - **Time verdicts are advisory.** The 5-second target is measured and
   displayed per check, assuming typical broadband; the first request after
   deploy is slower (model schema compilation).
@@ -209,7 +210,25 @@ network, Azure hosting, no COLA integration for the prototype):
 - **Standalone by design.** No COLA integration; application data is entered
   manually or via CSV, matching the prototype scoping.
 - **Runs anywhere Node 18+ runs**, including Azure App Service:
-  `npm run build && npm start` with `ANTHROPIC_API_KEY` in app settings.
+  `npm run build && npm start` with `ANTHROPIC_API_KEY` and `APP_ACCESS_PASSWORD` in app settings.
+- **Security settings.** Every `/api/verify` call spends Anthropic credits,
+  so the API is protected (see `.env.example`):
+  - `APP_ACCESS_PASSWORD` (required in production): HTTP Basic auth on all
+    pages and the API; the browser prompts once. Optional `APP_ACCESS_USER`.
+    With `NODE_ENV=production` and no password, `/api/verify` returns 503
+    and logs a SECURITY error. Set `ALLOW_UNAUTHENTICATED=true` only when an
+    upstream SSO (e.g. Azure App Service Authentication) already restricts
+    access. Local `npm run dev` stays open when no password is set.
+  - `RATE_LIMIT_PER_MINUTE` (default 60 per client IP) and
+    `DAILY_REQUEST_CAP` (default 2000 Anthropic calls per UTC day); 0
+    disables. Counters are in memory per server instance, so with N
+    instances the effective limits are N times higher. The batch page
+    retries automatically on a per-IP 429.
+  - Client IP: never taken from the client-controlled left-most
+    `X-Forwarded-For` entry. Auto-detected on Vercel (`x-vercel-forwarded-for`)
+    and Azure App Service (1 proxy hop). Elsewhere set `TRUST_PROXY_HOPS` to
+    the number of proxies in front of the app, or `CLIENT_IP_HEADER` to a
+    header your proxy overwrites; otherwise all clients share one bucket.
 - A production deployment would need review against federal retention and PII
   policies, including the Anthropic API's data retention terms; out of scope
   for this exercise per discovery.
@@ -220,7 +239,8 @@ Three layers, all in the `tests/` folder and all currently passing. CI
 (GitHub Actions) runs the type check, unit tests, and production build on
 every push.
 
-1. **Unit tests** on the deterministic comparison logic and the CSV parser:
+1. **Unit tests** on the deterministic comparison logic, the CSV parser,
+   and the access/rate-limit helpers (`lib/security.ts`):
 
    ```bash
    npm test
@@ -228,14 +248,16 @@ every push.
 
    Covers matches, mismatches, missing/altered/title-case warnings, bold
    judgment, the STONE'S THROW scenario, accent folding, unit variations,
-   lenient bottler/origin matching, image-quality flags, and CSV parsing
-   edge cases. No API key needed.
+   lenient bottler/origin matching, image-quality flags, CSV parsing
+   edge cases, Basic auth, client-IP selection, and rate/daily limits.
+   No API key needed.
 
 2. **Browser end-to-end tests** (Puppeteer + your installed Chrome), which
    drive the real UI and make real API calls. Start the dev server first:
 
    ```bash
    npm run dev            # in one terminal, with ANTHROPIC_API_KEY set
+                          # (leave APP_ACCESS_PASSWORD unset for e2e)
    npm run test:e2e       # single-label flow: pass and fail cases
    npm run test:e2e:batch # all seven samples through batch mode
    ```

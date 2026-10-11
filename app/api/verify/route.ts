@@ -23,6 +23,13 @@ import {
   verifyAgainstApplication,
   type ApplicationData,
 } from "@/lib/verification";
+import {
+  checkAccess,
+  DailyCap,
+  FixedWindowLimiter,
+  getClientIp,
+  intFromEnv,
+} from "@/lib/security";
 
 // Reads ANTHROPIC_API_KEY from the environment (.env.local).
 // Constructed lazily so a missing key surfaces as a clear API error
@@ -64,6 +71,16 @@ const ALLOWED_MEDIA_TYPES = new Set([
 // Claude's per-image limit is 5 MB, which is ~6.7M base64 characters.
 const MAX_IMAGE_BASE64_CHARS = 7_000_000;
 
+// Abuse limits (in memory, per server instance; see lib/security.ts).
+// RATE_LIMIT_PER_MINUTE: requests per client IP per minute (0 = off).
+// The batch page keeps 4 requests in flight (~60/min), so 60 is the default.
+// DAILY_REQUEST_CAP: total Anthropic calls per UTC day (0 = off), a simple
+// ceiling on spend if the site or a password leaks.
+const perIpLimit = intFromEnv(process.env.RATE_LIMIT_PER_MINUTE, 60);
+const dailyCapValue = intFromEnv(process.env.DAILY_REQUEST_CAP, 2000);
+const ipLimiter = new FixedWindowLimiter(perIpLimit, 60_000);
+const dailyCap = new DailyCap(dailyCapValue);
+
 interface VerifyRequest {
   imageBase64: string;
   mediaType: string;
@@ -74,6 +91,31 @@ export async function POST(request: Request) {
   // Start the stopwatch first thing: the UI shows this elapsed time to keep
   // the "results in about 5 seconds" requirement honest.
   const started = Date.now();
+
+  // ---- Step 0: access control and abuse limits ----
+  // middleware.ts already gates this route; re-check here so the paid API
+  // is never reachable if the middleware matcher is changed.
+  const access = checkAccess(request.headers.get("authorization"), process.env);
+  if (!access.ok) {
+    return access.status === 401
+      ? NextResponse.json(
+          { error: "Authentication required." },
+          { status: 401, headers: { "WWW-Authenticate": 'Basic realm="LabelProof", charset="UTF-8"' } }
+        )
+      : NextResponse.json(
+          { error: "Server is not configured: access control is required (set APP_ACCESS_PASSWORD)." },
+          { status: 503 }
+        );
+  }
+  if (perIpLimit > 0) {
+    const limited = ipLimiter.hit(getClientIp(request.headers, process.env));
+    if (!limited.allowed) {
+      return NextResponse.json(
+        { error: "Too many requests. Please wait a moment and try again." },
+        { status: 429, headers: { "Retry-After": String(limited.retryAfterSec) } }
+      );
+    }
+  }
 
   // ---- Step 1: read and validate the request from the browser ----
   let body: VerifyRequest;
@@ -130,6 +172,14 @@ export async function POST(request: Request) {
           "Server is not configured: set ANTHROPIC_API_KEY in .env.local and restart.",
       },
       { status: 500 }
+    );
+  }
+
+  if (dailyCapValue > 0 && !dailyCap.take()) {
+    console.error("Daily request cap reached (DAILY_REQUEST_CAP=%d).", dailyCapValue);
+    return NextResponse.json(
+      { error: "The daily verification limit has been reached. Please try again tomorrow." },
+      { status: 429 }
     );
   }
 
