@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "node tests/verification.test.mts && node tests/csv.test.mts",
+    "test": "node tests/verification.test.mts && node tests/csv.test.mts && node tests/security.test.mts",
     "test:e2e": "node tests/e2e.mjs",
     "test:e2e:batch": "node tests/e2e-batch.mjs"
   },
