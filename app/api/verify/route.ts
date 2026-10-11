@@ -61,6 +61,9 @@ const ALLOWED_MEDIA_TYPES = new Set([
   "image/gif",
 ]);
 
+// Claude's per-image limit is 5 MB, which is ~6.7M base64 characters.
+const MAX_IMAGE_BASE64_CHARS = 7_000_000;
+
 interface VerifyRequest {
   imageBase64: string;
   mediaType: string;
@@ -80,10 +83,37 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
   }
 
-  const { imageBase64, mediaType, application } = body;
-  if (!imageBase64 || !ALLOWED_MEDIA_TYPES.has(mediaType)) {
+  const { imageBase64, mediaType, application } = body ?? ({} as VerifyRequest);
+  if (
+    typeof imageBase64 !== "string" ||
+    !imageBase64 ||
+    typeof mediaType !== "string" ||
+    !ALLOWED_MEDIA_TYPES.has(mediaType)
+  ) {
     return NextResponse.json(
       { error: "Please attach a JPEG, PNG, or WebP photo of the label." },
+      { status: 400 }
+    );
+  }
+  // The browser resizes photos to <=1568px JPEG, far below this cap. Reject
+  // oversized payloads before forwarding them to the paid API.
+  if (imageBase64.length > MAX_IMAGE_BASE64_CHARS) {
+    return NextResponse.json(
+      { error: "The photo is too large. Please use a smaller image." },
+      { status: 413 }
+    );
+  }
+  // Every application field must be a string (or absent) so malformed input
+  // gets a clean 400 instead of a crash inside the comparison code.
+  if (
+    typeof application !== "object" ||
+    application === null ||
+    Object.entries(application).some(
+      ([, v]) => v !== undefined && typeof v !== "string"
+    )
+  ) {
+    return NextResponse.json(
+      { error: "Invalid application data." },
       { status: 400 }
     );
   }
